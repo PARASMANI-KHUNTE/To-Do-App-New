@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>To-Do App</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+
+<div class="container mx-auto max-w-lg px-4 py-8">
+    <h1 class="text-3xl font-bold mb-4">To-Do App</h1>
+
+    <!-- Task Input -->
+    <div class="flex items-center mb-4">
+        <input type="text" id="taskInput" placeholder="Add a new task" class="flex-1 border rounded-l-lg py-2 px-4 focus:outline-none focus:ring focus:border-blue-500">
+        <button id="addTaskBtn" class="bg-blue-500 text-white py-2 px-4 rounded-r-lg ml-2">Add</button>
+    </div>
+
+    <!-- Pending Task List -->
+    <h2 class="text-xl font-semibold mb-2">Pending Tasks</h2>
+    <ul id="pendingTaskList" class="space-y-2">
+        <!-- Pending tasks will be added dynamically here -->
+    </ul>
+
+    <!-- Completed Task List -->
+    <h2 class="text-xl font-semibold mb-2">Completed Tasks</h2>
+    <ul id="completedTaskList" class="space-y-2">
+        <!-- Completed tasks will be added dynamically here -->
+    </ul>
+</div>
+
+<script>
+    // Function to create a new task element
+    function createTaskElement(task, listId) {
+        const li = document.createElement('li');
+        li.id = task._id;
+        li.className = 'flex justify-between items-center bg-white rounded-lg py-2 px-4';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'mr-2';
+        checkbox.checked = listId === 'completedTaskList';
+        const taskText = document.createElement('span');
+        taskText.textContent = task.taskInput;
+        const deleteBtn = document.createElement('button');
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.className = 'bg-red-500 text-white py-1 px-2 rounded';
+        deleteBtn.addEventListener('click', function() {
+            deleteTask(task._id, listId);
+            li.remove();
+        });
+        li.appendChild(checkbox);
+        li.appendChild(taskText);
+        li.appendChild(deleteBtn);
+        document.getElementById(listId).appendChild(li);
+    }
+
+    // Function to fetch tasks from the server and populate the lists
+    async function fetchTasks() {
+        try {
+            const response = await fetch('/tasks/pending');
+            const tasks = await response.json();
+            tasks.forEach(task => {
+                createTaskElement(task, 'pendingTaskList');
+            });
+        } catch (error) {
+            console.error('Error fetching pending tasks:', error);
+        }
+
+        try {
+            const response = await fetch('/tasks/completed');
+            const tasks = await response.json();
+            tasks.forEach(task => {
+                createTaskElement(task, 'completedTaskList');
+            });
+        } catch (error) {
+            console.error('Error fetching completed tasks:', error);
+        }
+    }
+
+    // Function to add a new task
+    async function addTask(taskInput) {
+        try {
+            const response = await fetch('/tasks/pending', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ taskInput })
+            });
+            const data = await response.json();
+            createTaskElement({ _id: data.taskId, taskInput }, 'pendingTaskList');
+        } catch (error) {
+            console.error('Error adding task:', error);
+        }
+    }
+
+    // Function to delete a task
+    async function deleteTask(taskId, listId) {
+        try {
+            await fetch(`/tasks/${taskId}`, {
+                method: 'DELETE'
+            });
+        } catch (error) {
+            console.error('Error deleting task:', error);
+        }
+    }
+
+    // Event listener for adding a new task
+    document.getElementById('addTaskBtn').addEventListener('click', function() {
+        const taskInput = document.getElementById('taskInput').value.trim();
+        if (taskInput !== '') {
+            addTask(taskInput);
+            document.getElementById('taskInput').value = '';
+        }
+    });
+
+    // Event listener for updating task status when checkbox is clicked
+    document.addEventListener('change', async function(event) {
+        if (event.target.matches('input[type="checkbox"]')) {
+            const taskId = event.target.parentElement.id;
+            const listId = event.target.parentElement.parentElement.id;
+            if (listId === 'pendingTaskList') {
+                try {
+                    await fetch(`/tasks/${taskId}/complete`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    const li = document.getElementById(taskId);
+                    document.getElementById('completedTaskList').appendChild(li);
+                } catch (error) {
+                    console.error('Error marking task as completed:', error);
+                }
+            } else if (listId === 'completedTaskList') {
+                try {
+                    await fetch(`/tasks/${taskId}/undo`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    const li = document.getElementById(taskId);
+                    document.getElementById('pendingTaskList').appendChild(li);
+                } catch (error) {
+                    console.error('Error marking task as pending:', error);
+                }
+            }
+        }
+    });
+
+    // Fetch tasks when the page loads
+    fetchTasks();
+</script>
+
+</body>
+</html>
